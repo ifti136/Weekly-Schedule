@@ -3,10 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flexible Schedule Builder V2</title>
-    <!-- Load Tailwind CSS CDN -->
+    <title>Flexible Schedule Builder V3</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Load React, ReactDOM, and Babel for JSX compilation in the browser -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -38,7 +36,7 @@
         // Parses the start time from the schedule slot string (e.g., '10:30 AM-11:00 AM') to minutes
         const parseScheduleTimeStart = (timeStr) => {
             const parts = timeStr.split('-')[0].trim().split(' ');
-            if (parts.length < 2) return 0; // Handle single time slots
+            if (parts.length < 2) return 0;
             
             let [time, modifier] = parts;
             let [h, m] = time.split(':').map(Number);
@@ -73,14 +71,8 @@
                 };
 
                 const timeStr = `${formatTime(start)}-${formatTime(end)}`;
+                // NOTE: Removing hardcoded prayer assignments from TIME_SLOTS
                 const slot = { id: `t${String(timeIdCounter).padStart(2, '0')}`, time: timeStr };
-
-                // Map prayers to their standard start times
-                if (h === 5 && m === 0) slot.prayer = 'Fajr';
-                if (h === 13 && m === 0) slot.prayer = 'Zuhr'; // 1:00 PM
-                if (h === 16 && m === 30) slot.prayer = 'Asr'; // 4:30 PM
-                if (h === 18 && m === 30) slot.prayer = 'Maghrib'; // 6:30 PM
-                if (h === 21 && m === 30) slot.prayer = 'Isha'; // 9:30 PM
 
                 TIME_SLOTS.push(slot);
                 timeIdCounter++;
@@ -199,7 +191,7 @@
                     {/* Namaj Times Section */}
                     <div>
                         <h3 className="text-xl font-bold text-center text-indigo-800 mb-4 border-b pb-2">🕌 Namaj Time</h3>
-                        <p className="text-center text-sm text-indigo-700 mb-4">Select the specific time for each prayer.</p>
+                        <p className="text-center text-sm text-indigo-700 mb-4">Select the specific time for each prayer. This determines the time slot for the indigo border.</p>
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
                             {prayers.map(prayer => (
                                 <div key={prayer} className="flex flex-col">
@@ -344,7 +336,7 @@
                 const uniEndMinutes = timeToMinutes(uniDayTimings.end);
                 const startMinutes = parseScheduleTimeStart(scheduleTimeRange);
 
-                // Handle cases where end time is before start time (e.g., crossing midnight, though unlikely here)
+                // Handle cases where end time is before start time (e.g., crossing midnight)
                 if (uniEndMinutes < uniStartMinutes) {
                     return startMinutes >= uniStartMinutes || startMinutes < uniEndMinutes;
                 } else {
@@ -352,24 +344,45 @@
                 }
             }, [uniTimes]);
 
+            // Dynamically check if the current slot's start time matches a user-defined prayer time
+            const getPrayerForSlot = useCallback((slot) => {
+                const slotStartMinutes = parseScheduleTimeStart(slot.time);
+
+                // Find a prayer where the user's defined time (in minutes) matches the slot's start time (in minutes)
+                const matchingPrayer = Object.keys(namajTimes).find(prayer => {
+                    return timeToMinutes(namajTimes[prayer]) === slotStartMinutes;
+                });
+
+                return matchingPrayer || null; // Returns prayer name (e.g., 'Maghrib') or null
+            }, [namajTimes]);
+
+
             // Cell component that contains the individual dropdown control and display logic
             const ScheduleCell = ({ day, slot }) => {
                 const assignmentId = weeklyAssignments[day]?.[slot.id] || 'none'; // Access specific day's assignment
                 const task = allTasks[assignmentId] || allTasks.none;
                 const isUniActive = isUniBlockActive(slot.time, day);
+                const matchingPrayer = getPrayerForSlot(slot); // Check for dynamic prayer match
+                
+                // --- Determine if the slot is reserved ---
+                const isReserved = isUniActive || !!matchingPrayer;
                 
                 const getCellClasses = () => {
                     let classes = `p-2 text-xs border-b border-gray-100 h-20 overflow-hidden relative`;
                     
                     // Base coloring from the selected task
-                    classes += ` ${task.color} ${task.text}`;
+                    if (isReserved) {
+                         classes += ' bg-gray-50/70 text-gray-800'; // Neutral background for reserved
+                    } else {
+                        classes += ` ${task.color} ${task.text}`;
+                    }
 
                     // 1. Dynamic Uni Highlight (Highest Priority)
                     if (isUniActive) {
                         classes += ' bg-red-100/70 text-red-800 font-semibold border-r-4 border-red-400';
                     }
-                    // 2. Namaj Highlight
-                    else if (slot.prayer) {
+                    // 2. Namaj Highlight (Now dynamic based on user settings)
+                    else if (matchingPrayer) {
                         classes += ' border-l-4 border-indigo-400 font-semibold text-indigo-800';
                     }
                     
@@ -378,37 +391,61 @@
                 
                 return (
                     <td key={day} className={getCellClasses()}>
-                        {/* Dropdown for assignment (Hidden in print) */}
-                        <select
-                            value={assignmentId}
-                            onChange={(e) => onAssignmentChange(day, slot.id, e.target.value)} // Call handler with day
-                            className={`w-full text-sm font-semibold rounded-md border-gray-300 shadow-sm focus:ring-teal-500 focus:border-teal-500 p-1 mb-1
-                                ${task.color} ${task.text} print:text-xs print:font-semibold print:h-full print:border-none print:shadow-none print:w-auto print:absolute print:top-1 print:left-1 print:right-1 print:opacity-0`}
-                        >
-                            {/* In print, this dropdown is hidden and the text here is used only for screen readability */}
-                            {Object.entries(allTasks).map(([id, def]) => (
-                                <option key={id} value={id} className={`p-2 ${def.color} ${def.text}`}>
-                                    {def.name}
-                                </option>
-                            ))}
-                        </select>
+                        {/* Dropdown for assignment (Hidden if reserved or printing) */}
+                        {!isReserved ? (
+                            <select
+                                value={assignmentId}
+                                onChange={(e) => onAssignmentChange(day, slot.id, e.target.value)} // Call handler with day
+                                className={`w-full text-sm font-semibold rounded-md border-gray-300 shadow-sm focus:ring-teal-500 focus:border-teal-500 p-1 mb-1
+                                    ${task.color} ${task.text} print:text-xs print:font-semibold print:h-full print:border-none print:shadow-none print:w-auto print:absolute print:top-1 print:left-1 print:right-1 print:opacity-0`}
+                            >
+                                {Object.entries(allTasks).map(([id, def]) => (
+                                    <option key={id} value={id} className={`p-2 ${def.color} ${def.text}`}>
+                                        {def.name}
+                                    </option>
+                                ))}
+                            </select>
+                        ) : (
+                            // Display for reserved slots (Screen-only display of the reserved status)
+                            <div className="p-1 mb-1 bg-white/70 rounded-md shadow-sm border border-gray-300 screen-reserved-text">
+                                {/* Display Uni/Out block first */}
+                                {isUniActive && (
+                                    <span className="text-red-700 font-bold text-sm">University/Out</span>
+                                )}
+                                {/* Display Namaj time on a new line if Uni time is also active */}
+                                {matchingPrayer && (
+                                    <span className={`text-indigo-700 font-bold text-sm ${isUniActive ? 'block' : ''}`}>
+                                        {matchingPrayer} Prayer
+                                    </span>
+                                )}
+                            </div>
+                        )}
                         
-                        {/* NEW: Display task name ONLY in print view for context */}
-                        <span className="hidden print:block font-semibold text-sm leading-tight mb-1 print:text-sm">{task.name}</span>
+                        {/* Task Name Display for Printing (Removed for screen view as per request) */}
+                        <span className={`font-semibold text-sm leading-tight mb-1 hidden print:block`}>
+                            {/* For reserved slots, display the *actual* reservation name in print */}
+                            {isUniActive && <span className="text-red-800 block">University/Out</span>}
+                            {matchingPrayer && <span className="text-indigo-800 block">{matchingPrayer} Prayer</span>}
+                            
+                            {/* Otherwise, display the assigned task name (only if not reserved) */}
+                            {(!isUniActive && !matchingPrayer) && task.name}
+                        </span>
+
                         
-                        {/* Namaj Time Display */}
-                        {slot.prayer && (
+                        {/* Namaj Time Details (Time shown below label) */}
+                        {matchingPrayer && (
                              <p className="mt-1 text-xxs text-indigo-700 font-medium print:text-xs">
-                                {slot.prayer}: {convertToAmPm(namajTimes[slot.prayer])}
+                                {convertToAmPm(namajTimes[matchingPrayer])}
                             </p>
                         )}
-                        {/* Show Uni Time in red block */}
+                        {/* Uni Time Details (Time shown below label) */}
                         {isUniActive && uniTimes[day] && (
                              <p className="mt-1 text-xxs font-medium print:text-xs">
                                 {uniTimes[day].start ? convertToAmPm(uniTimes[day].start) : ''} - {uniTimes[day].end ? convertToAmPm(uniTimes[day].end) : ''}
                             </p>
                         )}
-                        {task.isWorkout && (
+                        {/* Show Routine button only if it's a workout and not a reserved slot */}
+                        {task.isWorkout && !isReserved && (
                             <button
                                 onClick={() => onShowWorkout(day)}
                                 className="mt-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-teal-500 hover:bg-teal-600 text-white transition duration-200 shadow-md flex-shrink-0 print:hidden"
@@ -485,6 +522,7 @@
             const [customTasks, setCustomTasks] = useState({});
 
             // 1. Initialize State for Settings and Assignments
+            // Ensure initial times are in 24-hour format
             const initialNamajTimes = { Fajr: '05:00', Zuhr: '13:00', Asr: '16:30', Maghrib: '18:30', Isha: '21:30' };
             // Ensure every UNI_DAY has a time object and isEnabled flag
             const initialUniTimes = UNI_DAYS.reduce((acc, day) => {
@@ -530,8 +568,8 @@
             const handleAddTask = (name, color) => {
                 const newId = `custom-${Date.now()}`;
                 setCustomTasks(prev => ({
+                    [newId]: { id: newId, name, category: 'Custom', color, text: (color.includes('100') ? color.replace('100', '800') : 'text-gray-800'), isEditable: true },
                     ...prev,
-                    [newId]: { id: newId, name, category: 'Custom', color, text: (color.includes('100') ? color.replace('100', '800') : 'text-gray-800'), isEditable: true }
                 }));
             };
 
@@ -640,7 +678,7 @@
                     
                     <div className="max-w-7xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
                         <header className="bg-teal-600 p-6 text-white text-center rounded-t-2xl print:bg-teal-600">
-                          <h1 className="text-3xl font-extrabold tracking-tight mb-1">Flexible Schedule Builder V2</h1>
+                          <h1 className="text-3xl font-extrabold tracking-tight mb-1">Flexible Schedule Builder V3</h1>
                           <p className="text-sm opacity-90">Your customized weekly plan in two simple steps.</p>
                         </header>
                         
