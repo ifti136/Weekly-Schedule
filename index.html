@@ -1,842 +1,660 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Optimal Life Balance Schedule</title>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flexible Schedule Builder V2</title>
     <!-- Load Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load React, ReactDOM, and Babel for JSX compilation in the browser -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  </head>
-  <body>
+</head>
+<body>
     <div id="root"></div>
 
     <script type="text/babel">
-      const { useState } = React;
+        const { useState, useMemo, useCallback, useEffect } = React;
 
-      // --- Schedule Data ---
-
-      const WEEKLY_SCHEDULE = [
-        { time: "5:00 AM", label: "Wake Up", isKey: true },
-        {
-          time: "5:00-5:30 AM",
-          label: "Fajr Namaj Placeholder & Water/Light Stretching",
-          isKey: true,
-          prayer: "Fajr",
-        },
-        {
-          time: "5:30-6:30 AM",
-          label: {
-            Sat: "Workout (Morning)",
-            Sun: "Workout (Morning)",
-            Mon: "Workout (Morning)",
-            Tue: "Get Ready & Commute Prep",
-            Wed: "Get Ready & Commute Prep",
-            Thu: "Workout (Morning)",
-            Fri: "Workout (Morning)",
-          },
-          isKey: true,
-          isWorkout: true,
-        },
-        {
-          time: "6:30-7:00 AM",
-          label: {
-            Sat: "Shower, Moisturizer",
-            Sun: "Shower, Moisturizer",
-            Mon: "Shower, Moisturizer",
-            Tue: "Commute (Bus to Uni)",
-            Wed: "Commute (Bus to Uni)",
-            Thu: "Shower, Moisturizer",
-            Fri: "Shower, Moisturizer",
-          },
-          isKey: false,
-        },
-        { time: "7:00-7:30 AM", label: "Breakfast & Reading", isKey: false },
-        {
-          time: "7:30-9:30 AM",
-          label: {
-            Sat: "Study Block 1 (Deep Focus)",
-            Sun: "Prep for Uni/Free Time",
-            Mon: "Prep for Uni/Free Time",
-            Tue: "Study/Rest at Uni/Café",
-            Wed: "Study/Rest at Uni/Café",
-            Thu: "Prep for Uni/Free Time",
-            Fri: "Study Block 1 (Deep Focus)",
-          },
-          isKey: false,
-        },
-        {
-          time: "9:30-10:30 AM",
-          label: {
-            Sat: "Break/Errands",
-            Sun: "Commute (Bus to Uni)",
-            Mon: "Commute (Bus to Uni)",
-            Tue: "Break/Snack",
-            Wed: "Break/Snack",
-            Thu: "Commute (Bus to Uni)",
-            Fri: "Free Time/Hobbies/Hair Prep",
-          },
-          isKey: true,
-        },
-        {
-          time: "10:30 AM-1:00 PM",
-          label: {
-            Sat: "Study Block 2",
-            Sun: "University Classes",
-            Mon: "University Classes",
-            Tue: "University Classes",
-            Wed: "University Classes",
-            Thu: "University Classes",
-            Fri: "Free Time/Hobbies",
-          },
-          isKey: false,
-        },
-        {
-          time: "1:00-1:30 PM",
-          label: "Zuhr Namaj Placeholder & Lunch",
-          isKey: true,
-          prayer: "Zuhr",
-        },
-        {
-          time: "1:30-3:30 PM",
-          label: {
-            Sat: "Free Time/Hobbies/Errands",
-            Sun: "University Classes",
-            Mon: "University Classes",
-            Tue: "Rest/Nap/Free Time",
-            Wed: "University Classes",
-            Thu: "University Classes",
-            Fri: "Free Time/Hobbies/Errands",
-          },
-          isKey: false,
-        },
-        {
-          time: "3:30-4:30 PM",
-          label: {
-            Sat: "Study Block 3",
-            Sun: "University Classes",
-            Mon: "University Classes",
-            Tue: "Study Block 1 (Deep Focus)",
-            Wed: "University Classes",
-            Thu: "University Classes",
-            Fri: "Study Block 2 (Deep Focus)",
-          },
-          isKey: false,
-        },
-        {
-          time: "4:30-5:00 PM",
-          label: "Asr Namaj Placeholder & Snack",
-          isKey: true,
-          prayer: "Asr",
-        },
-        {
-          time: "5:00-6:00 PM",
-          label: {
-            Sat: "Workout (Evening Option)",
-            Sun: "University Classes",
-            Mon: "University Classes",
-            Tue: "Workout (Evening)",
-            Wed: "Commute to Uni",
-            Thu: "University Classes",
-            Fri: "Workout (Evening Option)",
-          },
-          isKey: true,
-          isWorkout: true,
-        },
-        {
-          time: "6:00-7:00 PM",
-          label: {
-            Sat: "Dinner & Relax / Maghrib Namaj Placeholder",
-            Sun: "Commute Home & Maghrib Namaj Placeholder",
-            Mon: "Commute Home & Maghrib Namaj Placeholder",
-            Tue: "Dinner & Maghrib Namaj Placeholder",
-            Wed: "Dinner & Maghrib Namaj Placeholder",
-            Thu: "Dinner & Maghrib Namaj Placeholder",
-            Fri: "Dinner & Relax / Maghrib Namaj Placeholder",
-          },
-          isKey: true,
-          prayer: "Maghrib",
-        },
-        {
-          time: "7:00-7:30 PM",
-          label: "PM Skincare: Salicylic Acid Facewash, Niacinamide/Squalane",
-          isKey: true,
-          isTreatment: true,
-        },
-        {
-          time: "7:30-8:30 PM",
-          label: {
-            Sat: "Study Block 4",
-            Sun: "Study Block 1 (Review/Prep)",
-            Mon: "Study Block 1 (Review/Prep)",
-            Tue: "Study Block 2 (Deep Focus)",
-            Wed: "Commute Home",
-            Thu: "Commute Home & Dinner",
-            Fri: "Study Block 3 (Light/Review)",
-          },
-          isKey: false,
-        },
-        {
-          time: "8:30-9:30 PM",
-          label: {
-            Sat: "Free Time/Hobby",
-            Sun: "Free Time/Hobby",
-            Mon: "Free Time/Hobby",
-            Tue: "Free Time/Hobby",
-            Wed: "PM Skincare (7:00 pm slot)",
-            Thu: "PM Skincare (7:00 pm slot)",
-            Fri: "Free Time/Hobby",
-          },
-          isKey: false,
-        },
-        {
-          time: "9:30-10:00 PM",
-          label: "Isha Namaj Placeholder & Prep for Bed",
-          isKey: true,
-          prayer: "Isha",
-        },
-        {
-          time: "10:00-10:15 PM",
-          label: {
-            Sat: "Hair Treatment: Darma Roller (No Minoxidil/Prosalic/Serum)",
-            Sun: "Hair Treatments: Minoxidil, Prosalic, Hair Serum",
-            Mon: "Hair Treatments: Minoxidil, Prosalic, Hair Serum",
-            Tue: "Hair Treatments: Minoxidil, Prosalic, Hair Serum",
-            Wed: "Hair Treatments: Minoxidil, Prosalic, Hair Serum",
-            Thu: "Hair Treatments: Minoxidil, Prosalic, Hair Serum",
-            Fri: "Hair Treatments: Minoxidil, Prosalic, Hair Serum",
-          },
-          isKey: true,
-          isTreatment: true,
-        },
-        { time: "10:15 PM", label: "Sleep", isKey: true },
-      ];
-
-      // Define the weekly workout routines (No change needed here)
-      const WORKOUT_ROUTINES = {
-        Sunday: {
-          focus: "Full Body Strength",
-          exercises: [
-            "Squats (3 sets of 12)",
-            "Push-ups (3 sets to failure)",
-            "Dumbbell Rows or Towel Rows (3 sets of 15 per side)",
-            "Walking Lunges (3 sets of 10 per leg)",
-            "Plank (3 sets of 60 seconds)",
-          ],
-        },
-        Monday: {
-          focus: "Cardio & Core HIIT",
-          exercises: [
-            "Warm-up (5 mins dynamic stretch)",
-            "High Knees (30s) / Rest (15s)",
-            "Burpees (30s) / Rest (15s)",
-            "Mountain Climbers (30s) / Rest (15s)",
-            "Jumping Jacks (30s) / Rest (15s)",
-            "Russian Twists (3 sets of 20)",
-          ],
-        },
-        Tuesday: {
-          focus: "Lower Body Focus",
-          exercises: [
-            "Glute Bridges (3 sets of 20)",
-            "Single-Leg Romanian Deadlifts (3 sets of 10 per leg)",
-            "Wall Sit (3 sets of 60 seconds)",
-            "Calf Raises (3 sets of 25)",
-            "Cool Down Stretching",
-          ],
-        },
-        Wednesday: {
-          focus: "Quick Core & Mobility (Short Session)",
-          exercises: [
-            "Cat-Cow Stretch (5 minutes)",
-            "Reverse Crunches (3 sets of 15)",
-            "Side Plank (2 sets of 30 seconds per side)",
-            "Spine Twist (Mobility)",
-          ],
-        },
-        Thursday: {
-          focus: "Upper Body Focus",
-          exercises: [
-            "Pike Push-ups (3 sets of 10 - Shoulder focus)",
-            "Incline Push-ups (3 sets to failure - Chest focus)",
-            "Triceps Dips (3 sets of 15)",
-            "Arm Circles (Forward and Backward - 2 minutes)",
-            "Scapular Push-ups (3 sets of 12)",
-          ],
-        },
-        Friday: {
-          focus: "Active Recovery & Flexibility",
-          exercises: [
-            "30-minute Yin Yoga or Slow Flow session",
-            "Deep Hip Flexor Stretch (Hold 60s per side)",
-            "Pigeon Pose (Hold 90s per side)",
-            "Foam Rolling (or lacrosse ball massage) for back and legs",
-            "Meditation/Breathwork (10 mins)",
-          ],
-        },
-        Saturday: {
-          focus: "Full Body Endurance Circuit",
-          exercises: [
-            "Jump Squats (45s)",
-            "Standard Push-ups (45s)",
-            "Bicycle Crunches (45s)",
-            "Flutter Kicks (45s)",
-            "Plank with Shoulder Taps (45s)",
-            "Rest for 60s. Repeat 3-4 times.",
-          ],
-        },
-      };
-
-      // --- Utility Components ---
-
-      // Button component to show workout details
-      const WorkoutButton = ({ day, onShow }) => (
-        <button
-          onClick={() => onShow(day)}
-          className="ml-2 px-3 py-1 text-xs font-semibold rounded-lg bg-teal-500 hover:bg-teal-600 text-white transition duration-200 shadow-md flex-shrink-0"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4 inline mr-1"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17.58 10.15c.34-.34.34-.89 0-1.23a.87.87 0 00-1.23 0L14 12.33l-1.35-1.35c-.34-.34-.89-.34-1.23 0a.87.87 0 000 1.23l2 2c.34.34.89.34 1.23 0l3.58-3.58c.34-.34.34-.89 0-1.23z" />
-          </svg>
-          Routine
-        </button>
-      );
-
-      // Modal component for displaying workout routine
-      const WorkoutModal = ({ workout, onClose }) => {
-        if (!workout) return null;
-
-        return (
-          <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all duration-300 scale-100">
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                {workout.day} Workout
-              </h2>
-              <p className="text-lg font-medium text-teal-600 mb-4 border-b pb-2">
-                Focus: {workout.focus}
-              </p>
-              <ul className="space-y-3 max-h-72 overflow-y-auto pr-2">
-                {workout.exercises.map((ex, index) => (
-                  <li key={index} className="flex items-start text-gray-700">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5 text-green-500 flex-shrink-0 mt-1 mr-2"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                    {ex}
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={onClose}
-                className="mt-6 w-full py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition duration-200 shadow-lg"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        );
-      };
-
-      // --- Schedule Settings Component (Combined Namaj and Uni) ---
-
-      const ScheduleSettings = ({
-        namajTimes,
-        onNamajTimeChange,
-        uniTimes,
-        onUniTimeChange,
-        onToggle,
-        isExpanded,
-        uniDays,
-      }) => {
-        const prayers = ["Fajr", "Zuhr", "Asr", "Maghrib", "Isha"];
-
-        return (
-          <div className="p-4 bg-indigo-50 border-b border-indigo-200 rounded-b-2xl">
-            <button
-              onClick={onToggle}
-              className="w-full text-left flex items-center justify-between text-lg font-bold text-indigo-800"
-            >
-              <span>
-                ⚙️ Dynamic Schedule Settings (Click to{" "}
-                {isExpanded ? "Hide" : "Show"})
-              </span>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className={`h-6 w-6 transform transition-transform ${
-                  isExpanded ? "rotate-180" : "rotate-0"
-                }`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </button>
-
-            {isExpanded && (
-              <div className="mt-4 space-y-6">
-                {/* Namaj Times Section */}
-                <div>
-                  <h3 className="text-base font-bold text-indigo-700 mb-3 border-b border-indigo-200 pb-1">
-                    🕌 Namaj Times
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    {prayers.map((prayer) => (
-                      <div key={prayer} className="flex flex-col">
-                        <label
-                          htmlFor={prayer}
-                          className="text-sm font-medium text-indigo-700 mb-1"
-                        >
-                          {prayer}
-                        </label>
-                        <input
-                          id={prayer}
-                          type="time"
-                          value={namajTimes[prayer]}
-                          onChange={(e) =>
-                            onNamajTimeChange(prayer, e.target.value)
-                          }
-                          className="px-3 py-2 border border-indigo-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* University/Out-of-Home Block Section */}
-                <div>
-                  <h3 className="text-base font-bold text-indigo-700 mb-3 border-b border-indigo-200 pb-1">
-                    🎓 University Block (Out-of-Home)
-                  </h3>
-                  <p className="text-sm text-indigo-600 mb-4">
-                    Set your specific start and end times for each day you are
-                    at university. The schedule will highlight these blocks.
-                  </p>
-                  <div className="space-y-3">
-                    {uniDays.map((day) => (
-                      <div
-                        key={day}
-                        className="grid grid-cols-5 gap-3 sm:gap-4 items-center p-3 bg-indigo-100/70 rounded-xl shadow-inner"
-                      >
-                        <label className="col-span-2 sm:col-span-1 text-sm font-bold text-indigo-800">
-                          {day}
-                        </label>
-                        <div className="col-span-3 sm:col-span-2 flex flex-col">
-                          <label
-                            htmlFor={`${day}-start`}
-                            className="text-xs text-indigo-700 mb-1"
-                          >
-                            Start Time
-                          </label>
-                          <input
-                            id={`${day}-start`}
-                            type="time"
-                            value={uniTimes[day].start}
-                            onChange={(e) =>
-                              onUniTimeChange(day, "start", e.target.value)
-                            }
-                            className="px-2 py-1 border border-indigo-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 text-sm"
-                          />
-                        </div>
-                        <div className="col-span-3 sm:col-span-2 flex flex-col">
-                          <label
-                            htmlFor={`${day}-end`}
-                            className="text-xs text-indigo-700 mb-1"
-                          >
-                            End Time
-                          </label>
-                          <input
-                            id={`${day}-end`}
-                            type="time"
-                            value={uniTimes[day].end}
-                            onChange={(e) =>
-                              onUniTimeChange(day, "end", e.target.value)
-                            }
-                            className="px-2 py-1 border border-indigo-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 text-sm"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <p className="text-xs text-indigo-600 pt-3 border-t border-indigo-200">
-                  Tip: Adjust these times to personalize your schedule. All
-                  updates are applied instantly.
-                </p>
-              </div>
-            )}
-          </div>
-        );
-      };
-
-      // --- Main App Component ---
-
-      const App = () => {
-        const [showWorkout, setShowWorkout] = useState(null);
-        const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
-        const days = [
-          "Saturday",
-          "Sunday",
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-        ];
-
-        // Namaj times state
-        const initialNamajTimes = {
-          Fajr: "05:15",
-          Zuhr: "13:15",
-          Asr: "16:45",
-          Maghrib: "18:30",
-          Isha: "21:45",
-        };
-        const [namajTimes, setNamajTimes] = useState(initialNamajTimes);
-
-        // University times state, now per day (Sun-Thu)
-        const uniDays = [
-          "Sunday",
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-        ];
-        const initialUniTimes = {
-          Sunday: { start: "09:30", end: "17:00" },
-          Monday: { start: "09:30", end: "17:00" },
-          Tuesday: { start: "09:30", end: "17:00" },
-          Wednesday: { start: "09:30", end: "17:00" },
-          Thursday: { start: "09:30", end: "17:00" },
-        };
-        const [uniTimes, setUniTimes] = useState(initialUniTimes);
-
-        const handleNamajTimeChange = (prayer, time) => {
-          setNamajTimes((prev) => ({ ...prev, [prayer]: time }));
-        };
-
-        const handleUniTimeChange = (day, key, time) => {
-          setUniTimes((prev) => ({
-            ...prev,
-            [day]: {
-              ...prev[day],
-              [key]: time,
-            },
-          }));
-        };
-
-        const handleShowWorkout = (day) => {
-          setShowWorkout({ day, ...WORKOUT_ROUTINES[day] });
-        };
-
-        const closeModal = () => {
-          setShowWorkout(null);
-        };
-
-        // Helper to convert 24hr time (HH:MM) to 12hr AM/PM (H:MM AM/PM) for display
+        // --- Helper Functions ---
+        // Converts 24-hour time (HH:MM) to 12-hour AM/PM format
         const convertToAmPm = (time24) => {
-          if (!time24) return "N/A";
-          const [hours, minutes] = time24.split(":");
-          let h = parseInt(hours, 10);
-          const ampm = h >= 12 ? "PM" : "AM";
-          h = h % 12;
-          h = h ? h : 12;
-          return `${h}:${minutes} ${ampm}`;
+            if (!time24) return 'N/A';
+            const [hours, minutes] = time24.split(':');
+            let h = parseInt(hours, 10);
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12;
+            h = h ? h : 12; 
+            const minutesStr = minutes < 10 ? '0' + minutes : minutes;
+            return `${h}:${minutesStr} ${ampm}`;
         };
-
-        // Helper to convert time string (HH:MM) to minutes for comparison
+        // Converts 24-hour time (HH:MM) to minutes from midnight
         const timeToMinutes = (time24) => {
-          if (!time24) return 0;
-          const [hours, minutes] = time24.split(":").map(Number);
-          return hours * 60 + minutes;
+            if (!time24) return 0;
+            const [hours, minutes] = time24.split(':').map(Number);
+            return hours * 60 + minutes;
         };
-
-        // Helper to convert schedule time string (e.g., '10:30 AM-1:00 PM') start time to minutes
+        // Parses the start time from the schedule slot string (e.g., '10:30 AM-11:00 AM') to minutes
         const parseScheduleTimeStart = (timeStr) => {
-          const start = timeStr.split("-")[0].trim();
-          let [time, modifier] = start.split(" ");
-          let [h, m] = time.split(":").map(Number);
+            const parts = timeStr.split('-')[0].trim().split(' ');
+            if (parts.length < 2) return 0; // Handle single time slots
+            
+            let [time, modifier] = parts;
+            let [h, m] = time.split(':').map(Number);
 
-          if (modifier === "PM" && h !== 12) {
-            h += 12;
-          } else if (modifier === "AM" && h === 12) {
-            h = 0; // Midnight 12 AM
-          }
-          return h * 60 + m;
+            if (modifier === 'PM' && h !== 12) { h += 12; } 
+            else if (modifier === 'AM' && h === 12) { h = 0; }
+            
+            return h * 60 + m;
         };
 
-        // Check if a schedule block's start time falls within the user's defined Uni range for that specific day
-        const isUniBlockActive = (scheduleTimeRange, day) => {
-          // Check if the day is designated as a Uni day AND if we have valid timings for it
-          if (
-            !uniDays.includes(day) ||
-            !uniTimes[day] ||
-            !uniTimes[day].start ||
-            !uniTimes[day].end
-          )
-            return false;
+        // --- Core Static Data Generation (30-minute intervals) ---
+        const TIME_SLOTS = [];
+        let timeIdCounter = 1;
+        
+        // Generate 30-minute blocks from 5:00 AM (05:00) up to 11:30 PM (23:30)
+        for (let h = 5; h <= 23; h++) {
+            for (let m = 0; m < 60; m += 30) {
+                // Stop at 11:30 PM (23:30) for the consistent 30-min blocks
+                if (h === 23 && m === 30) break;
+                
+                const start = new Date(2000, 0, 1, h, m);
+                const end = new Date(2000, 0, 1, h, m + 30);
+                
+                const formatTime = (date) => {
+                    let hours = date.getHours();
+                    const minutes = date.getMinutes();
+                    const ampm = hours >= 12 ? 'PM' : 'AM';
+                    hours = hours % 12;
+                    hours = hours ? hours : 12; 
+                    const minutesStr = minutes < 10 ? '0' + minutes : minutes;
+                    return `${hours}:${minutesStr} ${ampm}`;
+                };
 
-          // Get the dynamic uni range for the specific day
-          const uniDayTimings = uniTimes[day];
-          const uniStartMinutes = timeToMinutes(uniDayTimings.start);
-          const uniEndMinutes = timeToMinutes(uniDayTimings.end);
+                const timeStr = `${formatTime(start)}-${formatTime(end)}`;
+                const slot = { id: `t${String(timeIdCounter).padStart(2, '0')}`, time: timeStr };
 
-          // Get the start time of the specific schedule slot
-          const startMinutes = parseScheduleTimeStart(scheduleTimeRange);
+                // Map prayers to their standard start times
+                if (h === 5 && m === 0) slot.prayer = 'Fajr';
+                if (h === 13 && m === 0) slot.prayer = 'Zuhr'; // 1:00 PM
+                if (h === 16 && m === 30) slot.prayer = 'Asr'; // 4:30 PM
+                if (h === 18 && m === 30) slot.prayer = 'Maghrib'; // 6:30 PM
+                if (h === 21 && m === 30) slot.prayer = 'Isha'; // 9:30 PM
 
-          if (uniEndMinutes < uniStartMinutes) {
-            // If the dynamic range crosses midnight (e.g., 22:00 to 02:00)
-            return (
-              startMinutes >= uniStartMinutes || startMinutes < uniEndMinutes
-            );
-          } else {
-            // Standard check: Is the start time of the slot >= Uni Start AND < Uni End?
-            return (
-              startMinutes >= uniStartMinutes && startMinutes < uniEndMinutes
-            );
-          }
+                TIME_SLOTS.push(slot);
+                timeIdCounter++;
+            }
+        }
+        
+        // Add the final 15-minute slot (11:30 PM - 11:45 PM)
+        TIME_SLOTS.push({ 
+            id: `t${String(timeIdCounter).padStart(2, '0')}`, 
+            time: `${convertToAmPm('23:30')}-${convertToAmPm('23:45')}`, 
+            isEnd: true
+        });
+
+
+        const DAYS = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+        const UNI_DAYS = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+
+        // Built-in Tasks (Simplified)
+        const BASE_TASK_DEFINITIONS = {
+            'none': { id: 'none', name: '— Choose Activity —', category: 'General', color: 'bg-white', text: 'text-gray-500', isEditable: false },
+            'wake': { id: 'wake', name: 'Wake Up', category: 'General', color: 'bg-green-300', text: 'text-green-900', isEditable: false },
+            'sleep': { id: 'sleep', name: 'Sleep', category: 'General', color: 'bg-gray-800', text: 'text-white', isEditable: false },
+            'workout_routine': { id: 'workout_routine', name: 'Workout (Routine)', category: 'Health', color: 'bg-lime-200', text: 'text-lime-900', isWorkout: true, isEditable: false },
+        };
+        
+        // Initial Assignments (Nested structure for weekly assignments: Day -> Slot -> Task)
+        const INITIAL_WEEKLY_ASSIGNMENTS = DAYS.reduce((dayAcc, day) => {
+            dayAcc[day] = TIME_SLOTS.reduce((slotAcc, slot) => {
+                let taskId = 'none';
+                if (slot.id === 't01') taskId = 'wake'; 
+                if (slot.isEnd) taskId = 'sleep';
+                slotAcc[slot.id] = taskId;
+                return slotAcc;
+            }, {});
+            return dayAcc;
+        }, {});
+
+        // Workout Routines (unchanged)
+        const WORKOUT_ROUTINES = {
+          'Sunday': { focus: 'Full Body Strength', exercises: ['Squats (3x12)', 'Push-ups (3x to failure)', 'Dumbbell Rows (3x15)', 'Lunges (3x10)', 'Plank (3x60s)'] },
+          'Monday': { focus: 'Cardio & Core HIIT', exercises: ['High Knees (30s)', 'Burpees (30s)', 'Mountain Climbers (30s)', 'Jumping Jacks (30s)', 'Russian Twists (3x20)'] },
+          'Tuesday': { focus: 'Lower Body Focus', exercises: ['Glute Bridges (3x20)', 'Single-Leg Deadlifts (3x10)', 'Wall Sit (3x60s)', 'Calf Raises (3x25)'] },
+          'Wednesday': { focus: 'Quick Core & Mobility', exercises: ['Cat-Cow Stretch', 'Reverse Crunches (3x15)', 'Side Plank (2x30s)', 'Spine Twist'] },
+          'Thursday': { focus: 'Upper Body Focus', exercises: ['Pike Push-ups (3x10)', 'Incline Push-ups (3x to failure)', 'Triceps Dips (3x15)', 'Arm Circles'] },
+          'Friday': { focus: 'Active Recovery & Flexibility', exercises: ['30-minute Yin Yoga', 'Deep Hip Flexor Stretch', 'Pigeon Pose', 'Foam Rolling', 'Meditation (10 mins)'] },
+          'Saturday': { focus: 'Full Body Endurance Circuit', exercises: ['Jump Squats (45s)', 'Standard Push-ups (45s)', 'Bicycle Crunches (45s)', 'Flutter Kicks (45s)', 'Plank with Shoulder Taps (45s)', 'Repeat 3-4 times.'] },
         };
 
-        // Helper to get the correct label for the day, replacing Namaj placeholders
-        const getDailyLabel = (item, day) => {
-          let label =
-            typeof item.label === "string"
-              ? item.label
-              : item.label[day.substring(0, 3)];
 
-          // Namaj replacement logic
-          if (label.includes("Fajr Namaj Placeholder")) {
-            return label.replace(
-              "Fajr Namaj Placeholder",
-              `Fajr Namaj (${convertToAmPm(namajTimes.Fajr)})`
-            );
-          }
-          if (label.includes("Zuhr Namaj Placeholder")) {
-            return label.replace(
-              "Zuhr Namaj Placeholder",
-              `Zuhr Namaj (${convertToAmPm(namajTimes.Zuhr)})`
-            );
-          }
-          if (label.includes("Asr Namaj Placeholder")) {
-            return label.replace(
-              "Asr Namaj Placeholder",
-              `Asr Namaj (${convertToAmPm(namajTimes.Asr)})`
-            );
-          }
-          if (label.includes("Maghrib Namaj Placeholder")) {
-            return label.replace(
-              "Maghrib Namaj Placeholder",
-              `Maghrib Namaj (${convertToAmPm(namajTimes.Maghrib)})`
-            );
-          }
-          if (label.includes("Isha Namaj Placeholder")) {
-            return label.replace(
-              "Isha Namaj Placeholder",
-              `Isha Namaj (${convertToAmPm(namajTimes.Isha)})`
-            );
-          }
+        // --- Shared Components ---
 
-          return label;
-        };
-
-        const getCellClasses = (item, day) => {
-          const label = getDailyLabel(item, day);
-          let classes = "p-3 text-sm border-b border-gray-100";
-
-          if (item.isKey) {
-            classes += " bg-blue-50/50 font-medium";
-          }
-
-          // 1. Treatment/Skincare Highlight
-          if (
-            item.isTreatment ||
-            label.includes("Facewash") ||
-            label.includes("Prosalic") ||
-            label.includes("Darma Roller") ||
-            label.includes("Hair Serum")
-          ) {
-            classes += " bg-amber-50/50 text-amber-800";
-          }
-
-          // 2. Workout Highlight
-          if (item.isWorkout) {
-            classes += " bg-green-50/50 text-green-800";
-          }
-
-          // 3. Dynamic University Block Highlight (Priority over static University class coloring)
-          if (isUniBlockActive(item.time, day)) {
-            classes +=
-              " bg-red-100/50 text-red-800 font-bold border-r-4 border-red-400";
-          }
-          // 4. Namaj Highlight
-          else if (label.includes("Namaj")) {
-            classes += " border-l-4 border-indigo-400";
-          }
-          // 5. Default University/Commute Coloring (Low priority)
-          else if (label.includes("University") || label.includes("Commute")) {
-            classes += " bg-blue-100/50 text-blue-800";
-          }
-
-          return classes;
-        };
-
-        return (
-          <div className="min-h-screen bg-gray-50 p-4 font-inter">
-            <style>{`
-                /* Load Inter font */
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-                .font-inter {
-                  font-family: 'Inter', sans-serif;
-                }
-                /* Hide scrollbar for aesthetics */
-                .schedule-container::-webkit-scrollbar {
-                  height: 6px;
-                }
-                .schedule-container::-webkit-scrollbar-thumb {
-                  background: #cbd5e1;
-                  border-radius: 3px;
-                }
-                .schedule-container::-webkit-scrollbar-track {
-                  background: #f7fafc;
-                }
-                /* Mobile optimization: ensure table is scrollable */
-                @media (max-width: 768px) {
-                    .schedule-container table {
-                        min-width: 900px; 
-                    }
-                }
-              `}</style>
-
-            <div className="max-w-7xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
-              <header className="bg-teal-600 p-6 text-white text-center rounded-t-2xl">
-                <h1 className="text-3xl font-extrabold tracking-tight mb-1">
-                  Optimal Life Balance Schedule
-                </h1>
-                <p className="text-sm opacity-90">
-                  Time Management for University, Health & Personal Care
-                </p>
-              </header>
-
-              <ScheduleSettings
-                namajTimes={namajTimes}
-                onNamajTimeChange={handleNamajTimeChange}
-                uniTimes={uniTimes}
-                onUniTimeChange={handleUniTimeChange}
-                onToggle={() => setIsSettingsExpanded(!isSettingsExpanded)}
-                isExpanded={isSettingsExpanded}
-                uniDays={uniDays} // Pass the days for rendering
-              />
-
-              <div className="overflow-x-auto schedule-container">
-                <table className="w-full text-left">
-                  <thead className="sticky top-0 bg-gray-100 border-b border-gray-200 shadow-sm">
-                    <tr>
-                      <th className="p-3 w-32 text-gray-700 text-sm font-bold">
-                        Time
-                      </th>
-                      {days.map((day) => (
-                        <th
-                          key={day}
-                          className="p-3 text-gray-700 text-sm font-bold w-48"
-                        >
-                          {day}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {WEEKLY_SCHEDULE.map((item, index) => (
-                      <tr key={index}>
-                        <td className="p-3 font-semibold text-gray-900 border-b border-gray-100 sticky left-0 bg-white/90 backdrop-blur-sm z-10">
-                          {item.time}
-                        </td>
-                        {days.map((day) => {
-                          const label = getDailyLabel(item, day);
-                          const cellClasses = getCellClasses(item, day);
-                          return (
-                            <td key={day} className={cellClasses}>
-                              <div className="flex items-center justify-between">
-                                <span className="flex-grow">{label}</span>
-                                {item.isWorkout &&
-                                  label.includes("Workout") && (
-                                    <WorkoutButton
-                                      day={day}
-                                      onShow={handleShowWorkout}
-                                    />
-                                  )}
-                              </div>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <footer className="p-6 bg-gray-50 border-t border-gray-200 rounded-b-2xl">
-                <h3 className="text-lg font-semibold text-gray-700 mb-2">
-                  Key Routine Notes
-                </h3>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li className="flex items-center">
-                    <span className="inline-block h-3 w-3 rounded-full bg-red-100 border border-red-400 mr-2"></span>
-                    <span className="font-medium">University Block:</span>{" "}
-                    Highlighted time slots are now specific to the **Start/End
-                    Times** you set for that particular day (Sun-Thu). This
-                    represents time spent outside the home.
-                  </li>
-                  <li className="flex items-center">
-                    <span className="inline-block h-3 w-3 rounded-full bg-indigo-100 border border-indigo-400 mr-2"></span>
-                    <span className="font-medium">Namaj Times:</span> Dynamic
-                    times are pulled from the settings.
-                  </li>
-                  <li className="flex items-center">
-                    <span className="inline-block h-3 w-3 rounded-full bg-amber-50 border border-amber-400 mr-2"></span>
-                    <span className="font-medium">Treatments (PM):</span> All
-                    treatments (Facewash, Minoxidil, Prosalic, Hair Serum) are
-                    applied at night. Darma Roller on Saturday only, skipping
-                    other treatments.
-                  </li>
-                  <li className="flex items-center">
-                    <span className="inline-block h-3 w-3 rounded-full bg-green-50 border border-green-400 mr-2"></span>
-                    <span className="font-medium">Health:</span> Workouts are
-                    structured for full-body coverage across the week.
-                  </li>
+        const WorkoutModal = ({ workout, onClose }) => { 
+          if (!workout) return null;
+          return (
+            <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50 print:hidden">
+              <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all duration-300 scale-100">
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">{workout.day} Workout</h2>
+                <p className="text-lg font-medium text-teal-600 mb-4 border-b pb-2">Focus: {workout.focus}</p>
+                <ul className="space-y-3 max-h-72 overflow-y-auto pr-2">
+                  {workout.exercises.map((ex, index) => (
+                    <li key={index} className="flex items-start text-gray-700">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 flex-shrink-0 mt-1 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      {ex}
+                    </li>
+                  ))}
                 </ul>
-              </footer>
+                <button
+                  onClick={onClose}
+                  className="mt-6 w-full py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition duration-200 shadow-lg"
+                >
+                  Close
+                </button>
+              </div>
             </div>
+          );
+        };
 
-            <WorkoutModal workout={showWorkout} onClose={closeModal} />
-          </div>
-        );
-      };
 
-      const container = document.getElementById("root");
-      const root = ReactDOM.createRoot(container);
-      root.render(<App />);
+        // --- VIEW 1: Settings and Task Management ---
+
+        const SettingsView = ({ namajTimes, onNamajTimeChange, uniTimes, onUniTimeChange, customTasks, onAddTask, onDeleteTask, onSwitchView }) => {
+            const prayers = ['Fajr', 'Zuhr', 'Asr', 'Maghrib', 'Isha'];
+            const [newTaskName, setNewTaskName] = useState('');
+            const [newTaskColor, setNewTaskColor] = useState('bg-yellow-200');
+
+            const handleAddTask = () => {
+                if (newTaskName.trim() === '') return;
+                onAddTask(newTaskName.trim(), newTaskColor);
+                setNewTaskName('');
+            };
+
+            const TaskDisplay = ({ task, onDelete }) => (
+                <div className={`${task.color} ${task.text} p-2 rounded-lg flex justify-between items-center border border-gray-300 shadow-sm`}>
+                    <span className="font-semibold text-sm">{task.name}</span>
+                    {task.isEditable && (
+                        <button onClick={() => onDelete(task.id)} className="text-red-600 hover:text-red-800 transition duration-100 p-1 rounded-full hover:bg-white/50">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 10-2 0v6a1 1 0 102 0V8z" clipRule="evenodd" />
+                            </svg>
+                        </button>
+                    )}
+                </div>
+            );
+
+            return (
+                <div className="p-6 space-y-8">
+                    <button
+                        onClick={() => onSwitchView('schedule')}
+                        className="w-full py-3 bg-teal-500 hover:bg-teal-600 text-white text-xl font-bold rounded-xl shadow-lg transition duration-200"
+                    >
+                        Go to Schedule View →
+                    </button>
+                    
+                    {/* Namaj Times Section */}
+                    <div>
+                        <h3 className="text-xl font-bold text-center text-indigo-800 mb-4 border-b pb-2">🕌 Namaj Time</h3>
+                        <p className="text-center text-sm text-indigo-700 mb-4">Select the specific time for each prayer.</p>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+                            {prayers.map(prayer => (
+                                <div key={prayer} className="flex flex-col">
+                                    <label htmlFor={prayer} className="text-sm font-medium text-indigo-700 mb-1">{prayer}</label>
+                                    <input
+                                        id={prayer}
+                                        type="time"
+                                        value={namajTimes[prayer]}
+                                        onChange={(e) => onNamajTimeChange(prayer, e.target.value)}
+                                        className="px-3 py-2 border border-indigo-300 rounded-lg shadow-sm text-gray-900"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                        
+                        <h3 className="text-xl font-bold text-red-800 mb-4 border-b pb-2">🎓 University/Out-of-Home Blocks (Sat-Thu)</h3>
+                        <p className="text-sm text-red-700 mb-4">Set specific start and end times for the days you are out. **Toggle off** a day to omit the block entirely.</p>
+                        <div className="space-y-3">
+                            {UNI_DAYS.map(day => (
+                                <div 
+                                    key={day} 
+                                    className={`grid grid-cols-1 sm:grid-cols-5 gap-3 sm:gap-4 items-center p-3 rounded-xl shadow-inner border transition-colors ${uniTimes[day]?.isEnabled ? 'bg-red-50/70 border-red-200' : 'bg-gray-100 border-gray-300'}`}
+                                >
+                                    {/* Day Label and Toggle Switch */}
+                                    <div className="sm:col-span-1 flex items-center justify-between sm:block">
+                                        <label className={`text-sm font-bold ${uniTimes[day]?.isEnabled ? 'text-red-800' : 'text-gray-500'}`}>{day}</label>
+                                        <label className="relative inline-flex items-center cursor-pointer mt-1 sm:mt-0">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={uniTimes[day]?.isEnabled || false} 
+                                                onChange={(e) => onUniTimeChange(day, 'isEnabled', e.target.checked)} 
+                                                className="sr-only peer"
+                                            />
+                                            {/* Toggle Switch UI */}
+                                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-red-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-600"></div>
+                                            <span className={`ms-3 text-sm font-medium hidden sm:inline ${uniTimes[day]?.isEnabled ? 'text-red-700' : 'text-gray-500'}`}>
+                                                {uniTimes[day]?.isEnabled ? 'Enabled' : 'Disabled'}
+                                            </span>
+                                        </label>
+                                    </div>
+                                    
+                                    {/* Start Time Input */}
+                                    <div className="col-span-2 flex flex-col">
+                                        <label className={`text-xs mb-1 ${uniTimes[day]?.isEnabled ? 'text-red-700' : 'text-gray-500'}`}>Start</label>
+                                        <input
+                                            type="time"
+                                            value={uniTimes[day]?.start || ''}
+                                            onChange={(e) => onUniTimeChange(day, 'start', e.target.value)}
+                                            className="px-2 py-1 border rounded-lg shadow-sm text-gray-900 text-sm disabled:bg-gray-200 disabled:border-gray-300"
+                                            disabled={!uniTimes[day]?.isEnabled}
+                                        />
+                                    </div>
+                                    
+                                    {/* End Time Input */}
+                                    <div className="col-span-2 flex flex-col">
+                                        <label className={`text-xs mb-1 ${uniTimes[day]?.isEnabled ? 'text-red-700' : 'text-gray-500'}`}>End</label>
+                                        <input
+                                            type="time"
+                                            value={uniTimes[day]?.end || ''}
+                                            onChange={(e) => onUniTimeChange(day, 'end', e.target.value)}
+                                            className="px-2 py-1 border rounded-lg shadow-sm text-gray-900 text-sm disabled:bg-gray-200 disabled:border-gray-300"
+                                            disabled={!uniTimes[day]?.isEnabled}
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Task Management Section */}
+                    <div>
+                        <h3 className="text-xl font-bold text-gray-800 mb-4 border-b pb-2">📝 Custom Task Library</h3>
+                        <p className="text-sm text-gray-600 mb-4">Add tasks here to make them available in the schedule dropdowns.</p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Add New Task */}
+                            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 shadow-md">
+                                <h4 className="font-bold text-gray-700 mb-2">Add New Task</h4>
+                                <input
+                                    type="text"
+                                    placeholder="Task Name (e.g., Study for Math)"
+                                    value={newTaskName}
+                                    onChange={(e) => setNewTaskName(e.target.value)}
+                                    className="w-full px-3 py-2 mb-2 border rounded-lg focus:ring-teal-500 focus:border-teal-500"
+                                />
+                                <div className="flex items-center space-x-2 mb-3">
+                                    <label className="text-sm">Highlight Color:</label>
+                                    <select
+                                        value={newTaskColor}
+                                        onChange={(e) => setNewTaskColor(e.target.value)}
+                                        className="px-2 py-1 border rounded-lg"
+                                    >
+                                        <option value="bg-yellow-100">Yellow (General)</option>
+                                        <option value="bg-indigo-100">Indigo (Study)</option>
+                                        <option value="bg-green-100">Green (Health)</option>
+                                        <option value="bg-pink-100">Pink (Hobby)</option>
+                                    </select>
+                                </div>
+                                <button
+                                    onClick={handleAddTask}
+                                    className="w-full py-2 bg-indigo-500 hover:bg-indigo-600 text-white font-bold rounded-lg transition duration-200"
+                                >
+                                    Add Task
+                                </button>
+                            </div>
+
+                            {/* Current Tasks List */}
+                            <div className="space-y-2 max-h-96 overflow-y-auto p-2">
+                                <h4 className="font-bold text-gray-700 mb-2">Your Custom Tasks:</h4>
+                                {Object.values(customTasks).length === 0 ? (
+                                    <p className="text-sm text-gray-500 italic">No custom tasks added yet.</p>
+                                ) : (
+                                    Object.values(customTasks).map(task => (
+                                        <TaskDisplay key={task.id} task={task} onDelete={onDeleteTask} />
+                                    ))
+                                )}
+                                <h4 className="font-bold text-gray-700 pt-4 border-t mt-4">Built-in Tasks:</h4>
+                                <div className="space-y-2">
+                                    {Object.values(BASE_TASK_DEFINITIONS).filter(t => t.name !== '— Choose Activity —').map(task => (
+                                        <TaskDisplay key={task.id} task={task} onDelete={onDeleteTask} />
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+
+        // --- VIEW 2: Schedule Builder ---
+
+        const ScheduleView = ({ allTasks, namajTimes, uniTimes, weeklyAssignments, onAssignmentChange, onShowWorkout, onSwitchView }) => {
+            
+            // Checks if a given schedule slot falls within the user-defined Uni/Out-of-Home block for that day
+            const isUniBlockActive = useCallback((scheduleTimeRange, day) => {
+                const uniDayTimings = uniTimes[day];
+                // Check if the day is a uni day AND if the block is explicitly enabled for that day
+                if (!UNI_DAYS.includes(day) || !uniDayTimings || !uniDayTimings.isEnabled || !uniDayTimings.start || !uniDayTimings.end) return false;
+                
+                const uniStartMinutes = timeToMinutes(uniDayTimings.start);
+                const uniEndMinutes = timeToMinutes(uniDayTimings.end);
+                const startMinutes = parseScheduleTimeStart(scheduleTimeRange);
+
+                // Handle cases where end time is before start time (e.g., crossing midnight, though unlikely here)
+                if (uniEndMinutes < uniStartMinutes) {
+                    return startMinutes >= uniStartMinutes || startMinutes < uniEndMinutes;
+                } else {
+                    return startMinutes >= uniStartMinutes && startMinutes < uniEndMinutes;
+                }
+            }, [uniTimes]);
+
+            // Cell component that contains the individual dropdown control and display logic
+            const ScheduleCell = ({ day, slot }) => {
+                const assignmentId = weeklyAssignments[day]?.[slot.id] || 'none'; // Access specific day's assignment
+                const task = allTasks[assignmentId] || allTasks.none;
+                const isUniActive = isUniBlockActive(slot.time, day);
+                
+                const getCellClasses = () => {
+                    let classes = `p-2 text-xs border-b border-gray-100 h-20 overflow-hidden relative`;
+                    
+                    // Base coloring from the selected task
+                    classes += ` ${task.color} ${task.text}`;
+
+                    // 1. Dynamic Uni Highlight (Highest Priority)
+                    if (isUniActive) {
+                        classes += ' bg-red-100/70 text-red-800 font-semibold border-r-4 border-red-400';
+                    }
+                    // 2. Namaj Highlight
+                    else if (slot.prayer) {
+                        classes += ' border-l-4 border-indigo-400 font-semibold text-indigo-800';
+                    }
+                    
+                    return classes;
+                };
+                
+                return (
+                    <td key={day} className={getCellClasses()}>
+                        {/* Dropdown for assignment (Hidden in print) */}
+                        <select
+                            value={assignmentId}
+                            onChange={(e) => onAssignmentChange(day, slot.id, e.target.value)} // Call handler with day
+                            className={`w-full text-sm font-semibold rounded-md border-gray-300 shadow-sm focus:ring-teal-500 focus:border-teal-500 p-1 mb-1
+                                ${task.color} ${task.text} print:text-xs print:font-semibold print:h-full print:border-none print:shadow-none print:w-auto print:absolute print:top-1 print:left-1 print:right-1 print:opacity-0`}
+                        >
+                            {/* In print, this dropdown is hidden and the text here is used only for screen readability */}
+                            {Object.entries(allTasks).map(([id, def]) => (
+                                <option key={id} value={id} className={`p-2 ${def.color} ${def.text}`}>
+                                    {def.name}
+                                </option>
+                            ))}
+                        </select>
+                        
+                        {/* NEW: Display task name ONLY in print view for context */}
+                        <span className="hidden print:block font-semibold text-sm leading-tight mb-1 print:text-sm">{task.name}</span>
+                        
+                        {/* Namaj Time Display */}
+                        {slot.prayer && (
+                             <p className="mt-1 text-xxs text-indigo-700 font-medium print:text-xs">
+                                {slot.prayer}: {convertToAmPm(namajTimes[slot.prayer])}
+                            </p>
+                        )}
+                        {/* Show Uni Time in red block */}
+                        {isUniActive && uniTimes[day] && (
+                             <p className="mt-1 text-xxs font-medium print:text-xs">
+                                {uniTimes[day].start ? convertToAmPm(uniTimes[day].start) : ''} - {uniTimes[day].end ? convertToAmPm(uniTimes[day].end) : ''}
+                            </p>
+                        )}
+                        {task.isWorkout && (
+                            <button
+                                onClick={() => onShowWorkout(day)}
+                                className="mt-1 px-2 py-0.5 text-xs font-semibold rounded-lg bg-teal-500 hover:bg-teal-600 text-white transition duration-200 shadow-md flex-shrink-0 print:hidden"
+                            >
+                                Routine
+                            </button>
+                        )}
+                    </td>
+                );
+            };
+            
+            const handlePrint = () => {
+                window.print();
+            };
+
+            return (
+                <div className="p-4">
+                    <div className="flex space-x-2 mb-4 print:hidden">
+                        <button
+                            onClick={() => onSwitchView('settings')}
+                            className="flex-1 py-3 bg-indigo-500 hover:bg-indigo-600 text-white text-xl font-bold rounded-xl shadow-lg transition duration-200"
+                        >
+                            ← Back to Settings & Tasks
+                        </button>
+                        <button
+                            onClick={handlePrint}
+                            className="py-3 px-6 bg-yellow-500 hover:bg-yellow-600 text-gray-900 text-xl font-bold rounded-xl shadow-lg transition duration-200"
+                        >
+                            Download Schedule (Print to PDF)
+                        </button>
+                    </div>
+
+                    <div className="overflow-x-auto schedule-container rounded-lg shadow-lg" id="schedule-to-print">
+                      <table className="w-full text-left table-fixed">
+                        <thead className="sticky top-0 bg-gray-100 border-b border-gray-200 shadow-sm">
+                          <tr className="print:bg-gray-200">
+                            {/* Time Slot Header (Sticky) */}
+                            <th className="p-3 w-32 text-gray-700 text-sm font-bold sticky left-0 bg-gray-100 z-20 border-r border-gray-200 print:w-40 print:bg-gray-200">Time Slot</th>
+                            
+                            {/* Day Headers */}
+                            {DAYS.map(day => (
+                              <th key={day} className="p-3 text-gray-700 text-sm font-bold w-40 print:w-40 print:text-center">{day}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {TIME_SLOTS.map(slot => (
+                            <tr key={slot.id}>
+                              {/* Time Column (Sticky) */}
+                              <td className="p-3 font-semibold text-gray-900 border-b border-gray-200 sticky left-0 bg-white/90 backdrop-blur-sm z-10 border-r border-gray-200 print:bg-white print:text-sm">{slot.time}</td>
+                              
+                              {/* Daily Assignment Cells (Each contains its own dropdown) */}
+                              {DAYS.map(day => (
+                                <ScheduleCell 
+                                    key={day}
+                                    day={day}
+                                    slot={slot}
+                                />
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Main App Component ---
+
+        const ScheduleApp = () => {
+            const [currentPage, setCurrentPage] = useState('settings'); 
+            const [showWorkout, setShowWorkout] = useState(null);
+            const [customTasks, setCustomTasks] = useState({});
+
+            // 1. Initialize State for Settings and Assignments
+            const initialNamajTimes = { Fajr: '05:00', Zuhr: '13:00', Asr: '16:30', Maghrib: '18:30', Isha: '21:30' };
+            // Ensure every UNI_DAY has a time object and isEnabled flag
+            const initialUniTimes = UNI_DAYS.reduce((acc, day) => {
+                acc[day] = { start: '09:00', end: '17:00', isEnabled: true };
+                return acc;
+            }, {});
+            
+            const [namajTimes, setNamajTimes] = useState(initialNamajTimes);
+            const [uniTimes, setUniTimes] = useState(initialUniTimes);
+            
+            // Weekly assignments: one task ID per slot AND per day
+            const [weeklyAssignments, setWeeklyAssignments] = useState(INITIAL_WEEKLY_ASSIGNMENTS);
+            
+            // 2. Combine Base and Custom Tasks
+            const allTasks = useMemo(() => {
+                return { ...BASE_TASK_DEFINITIONS, ...customTasks };
+            }, [customTasks]);
+
+            // 3. Handlers for Settings
+            const handleNamajTimeChange = (prayer, time) => {
+                setNamajTimes(prev => ({ ...prev, [prayer]: time }));
+            };
+            
+            const handleUniTimeChange = (day, key, value) => {
+                setUniTimes(prev => ({
+                    ...prev,
+                    [day]: { ...prev[day], [key]: value }
+                }));
+            };
+
+            // Assignment handler: updates the task for a specific slot ID on a specific DAY
+            const handleAssignmentChange = useCallback((day, slotId, taskId) => {
+                setWeeklyAssignments(prev => ({
+                    ...prev,
+                    [day]: {
+                        ...prev[day],
+                        [slotId]: taskId,
+                    }
+                }));
+            }, []);
+
+            // 4. Handlers for Custom Tasks
+            const handleAddTask = (name, color) => {
+                const newId = `custom-${Date.now()}`;
+                setCustomTasks(prev => ({
+                    ...prev,
+                    [newId]: { id: newId, name, category: 'Custom', color, text: (color.includes('100') ? color.replace('100', '800') : 'text-gray-800'), isEditable: true }
+                }));
+            };
+
+            const handleDeleteTask = (taskId) => {
+                // Remove task from custom list
+                setCustomTasks(prev => {
+                    const newTasks = { ...prev };
+                    delete newTasks[taskId];
+                    return newTasks;
+                });
+                
+                // Remove task from all assignments if it was used
+                setWeeklyAssignments(prev => {
+                    const newAssignments = { ...prev };
+                    DAYS.forEach(day => {
+                        TIME_SLOTS.forEach(slot => {
+                            if (newAssignments[day][slot.id] === taskId) {
+                                newAssignments[day][slot.id] = 'none'; // Revert to unassigned
+                            }
+                        });
+                    });
+                    return newAssignments;
+                });
+            };
+
+            // 5. Workout Modal Handlers
+            const handleShowWorkout = (day) => {
+                setShowWorkout({ day, ...WORKOUT_ROUTINES[day] });
+            };
+
+            const closeModal = () => {
+                setShowWorkout(null);
+            };
+
+            // 6. View Renderer
+            const renderView = () => {
+                if (currentPage === 'settings') {
+                    return (
+                        <SettingsView
+                            namajTimes={namajTimes}
+                            onNamajTimeChange={handleNamajTimeChange}
+                            uniTimes={uniTimes}
+                            onUniTimeChange={handleUniTimeChange}
+                            customTasks={customTasks}
+                            onAddTask={handleAddTask}
+                            onDeleteTask={handleDeleteTask}
+                            onSwitchView={setCurrentPage}
+                        />
+                    );
+                }
+                
+                return (
+                    <ScheduleView
+                        allTasks={allTasks}
+                        namajTimes={namajTimes}
+                        uniTimes={uniTimes}
+                        weeklyAssignments={weeklyAssignments}
+                        onAssignmentChange={handleAssignmentChange}
+                        onShowWorkout={handleShowWorkout}
+                        onSwitchView={setCurrentPage}
+                    />
+                );
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50 p-4 font-inter">
+                    <style>{`
+                        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+                        .font-inter { font-family: 'Inter', sans-serif; }
+                        .text-xxs { font-size: 0.65rem; }
+                        .schedule-container table { min-width: 1200px; }
+                        .schedule-container::-webkit-scrollbar { height: 6px; }
+                        .schedule-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+                        .schedule-container::-webkit-scrollbar-track { background: #f7fafc; }
+
+                        /* Print Styles for PDF Download */
+                        @media print {
+                            body { background-color: white !important; padding: 0 !important; margin: 0; }
+                            .min-h-screen { min-height: 0; }
+                            .max-w-7xl, .mx-auto, .bg-white, .rounded-2xl, .shadow-xl { 
+                                max-width: none !important; 
+                                margin: 0 !important; 
+                                border-radius: 0 !important; 
+                                box-shadow: none !important; 
+                                overflow: visible !important;
+                            }
+                            header, .schedule-to-print { padding: 0 !important; }
+
+                            /* Hide non-essential UI elements in print */
+                            .print\\:hidden, .print\\:hidden * { display: none !important; }
+                            .schedule-container { overflow: visible !important; }
+                            
+                            /* Ensure table fills page and remove sticky headers/footers */
+                            table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+                            thead th { position: static !important; background-color: #e5e7eb !important; border-bottom: 2px solid #374151; }
+                            tbody td { position: static !important; height: auto !important; padding: 0.5rem; font-size: 0.7rem; line-height: 1.1; border: 1px solid #e5e7eb; }
+                            
+                            /* Show Workout info in print */
+                            .workout-info { display: block !important; }
+
+                            /* For print, the task name is necessary since the dropdown is hidden */
+                            .print\\:block { display: block !important; }
+                            .print\\:text-sm { font-size: 0.875rem !important; }
+                        }
+                    `}</style>
+                    
+                    <div className="max-w-7xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
+                        <header className="bg-teal-600 p-6 text-white text-center rounded-t-2xl print:bg-teal-600">
+                          <h1 className="text-3xl font-extrabold tracking-tight mb-1">Flexible Schedule Builder V2</h1>
+                          <p className="text-sm opacity-90">Your customized weekly plan in two simple steps.</p>
+                        </header>
+                        
+                        {renderView()}
+                    </div>
+
+                    <WorkoutModal workout={showWorkout} onClose={closeModal} />
+                </div>
+            );
+        };
+
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<ScheduleApp />);
     </script>
-  </body>
+</body>
 </html>
