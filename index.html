@@ -125,31 +125,31 @@
         // --- Shared Components ---
 
         const WorkoutModal = ({ workout, onClose }) => { 
-          if (!workout) return null;
-          return (
-            <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50 print:hidden">
-              <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all duration-300 scale-100">
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">{workout.day} Workout</h2>
-                <p className="text-lg font-medium text-teal-600 mb-4 border-b pb-2">Focus: {workout.focus}</p>
-                <ul className="space-y-3 max-h-72 overflow-y-auto pr-2">
-                  {workout.exercises.map((ex, index) => (
-                    <li key={index} className="flex items-start text-gray-700">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 flex-shrink-0 mt-1 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      {ex}
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  onClick={onClose}
-                  className="mt-6 w-full py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition duration-200 shadow-lg"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          );
+            if (!workout) return null;
+            return (
+                <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50 print:hidden">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all duration-300 scale-100">
+                        <h2 className="text-2xl font-bold text-gray-800 mb-2">{workout.day} Workout</h2>
+                        <p className="text-lg font-medium text-teal-600 mb-4 border-b pb-2">Focus: {workout.focus}</p>
+                        <ul className="space-y-3 max-h-72 overflow-y-auto pr-2">
+                            {workout.exercises.map((ex, index) => (
+                                <li key={index} className="flex items-start text-gray-700">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 flex-shrink-0 mt-1 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                    </svg>
+                                    {ex}
+                                </li>
+                            ))}
+                        </ul>
+                        <button
+                            onClick={onClose}
+                            className="mt-6 w-full py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition duration-200 shadow-lg"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            );
         };
 
 
@@ -158,7 +158,7 @@
         const SettingsView = ({ namajTimes, onNamajTimeChange, uniTimes, onUniTimeChange, customTasks, onAddTask, onDeleteTask, onSwitchView }) => {
             const prayers = ['Fajr', 'Zuhr', 'Asr', 'Maghrib', 'Isha'];
             const [newTaskName, setNewTaskName] = useState('');
-            const [newTaskColor, setNewTaskColor] = useState('bg-yellow-200');
+            const [newTaskColor, setNewTaskColor] = useState('bg-yellow-100');
 
             const handleAddTask = () => {
                 if (newTaskName.trim() === '') return;
@@ -325,7 +325,8 @@
         // --- VIEW 2: Schedule Builder ---
 
         const ScheduleView = ({ allTasks, namajTimes, uniTimes, weeklyAssignments, onAssignmentChange, onShowWorkout, onSwitchView }) => {
-            
+            const [isGrouped, setIsGrouped] = useState(true); // NEW: State to toggle grouping
+
             // Checks if a given schedule slot falls within the user-defined Uni/Out-of-Home block for that day
             const isUniBlockActive = useCallback((scheduleTimeRange, day) => {
                 const uniDayTimings = uniTimes[day];
@@ -356,9 +357,50 @@
                 return matchingPrayer || null; // Returns prayer name (e.g., 'Maghrib') or null
             }, [namajTimes]);
 
+            // NEW: Helper function to determine if a slot is reserved
+            const getIsReserved = useCallback((slot, day) => {
+                return isUniBlockActive(slot.time, day) || !!getPrayerForSlot(slot);
+            }, [isUniBlockActive, getPrayerForSlot]);
+
+            // NEW: Memoized calculation for row spans
+            const rowSpans = useMemo(() => {
+                const spans = {};
+                DAYS.forEach(day => {
+                    spans[day] = {};
+                    if (!weeklyAssignments[day]) return;
+                    let i = 0;
+                    while (i < TIME_SLOTS.length) {
+                        const startSlot = TIME_SLOTS[i];
+                        const startTaskId = weeklyAssignments[day][startSlot.id];
+                        const startIsReserved = getIsReserved(startSlot, day);
+
+                        let span = 1;
+                        for (let j = i + 1; j < TIME_SLOTS.length; j++) {
+                            const nextSlot = TIME_SLOTS[j];
+                            const nextTaskId = weeklyAssignments[day][nextSlot.id];
+                            const nextIsReserved = getIsReserved(nextSlot, day);
+                            
+                            // Group if the task and reservation status are identical
+                            if (startTaskId === nextTaskId && startIsReserved === nextIsReserved) {
+                                span++;
+                            } else {
+                                break;
+                            }
+                        }
+                        
+                        spans[day][startSlot.id] = span; // Set span for the first cell
+                        for (let k = 1; k < span; k++) { // Mark subsequent cells to be skipped
+                            spans[day][TIME_SLOTS[i + k].id] = 0;
+                        }
+                        i += span;
+                    }
+                });
+                return spans;
+            }, [weeklyAssignments, getIsReserved]);
+
 
             // Cell component that contains the individual dropdown control and display logic
-            const ScheduleCell = ({ day, slot }) => {
+            const ScheduleCell = ({ day, slot, rowSpan }) => {
                 const assignmentId = weeklyAssignments[day]?.[slot.id] || 'none'; // Access specific day's assignment
                 const task = allTasks[assignmentId] || allTasks.none;
                 const isUniActive = isUniBlockActive(slot.time, day);
@@ -368,7 +410,8 @@
                 const isReserved = isUniActive || !!matchingPrayer;
                 
                 const getCellClasses = () => {
-                    let classes = `p-2 text-xs border-b border-gray-100 h-20 overflow-hidden relative`;
+                    // MODIFIED: Changed h-20 to min-h-[5rem] for better row spanning, added align-top
+                    let classes = `p-2 text-xs border-b border-gray-100 min-h-[5rem] align-top relative`;
                     
                     // Base coloring from the selected task
                     if (isReserved) {
@@ -390,14 +433,15 @@
                 };
                 
                 return (
-                    <td key={day} className={getCellClasses()}>
+                    // MODIFIED: Apply the calculated rowSpan to the table cell
+                    <td key={day} className={getCellClasses()} rowSpan={rowSpan > 1 ? rowSpan : undefined}>
                         {/* Dropdown for assignment (Hidden if reserved or printing) */}
                         {!isReserved ? (
                             <select
                                 value={assignmentId}
-                                onChange={(e) => onAssignmentChange(day, slot.id, e.target.value)} // Call handler with day
-                                className={`w-full text-sm font-semibold rounded-md border-gray-300 shadow-sm focus:ring-teal-500 focus:border-teal-500 p-1 mb-1
-                                    ${task.color} ${task.text} print:text-xs print:font-semibold print:h-full print:border-none print:shadow-none print:w-auto print:absolute print:top-1 print:left-1 print:right-1 print:opacity-0`}
+                                onChange={(e) => onAssignmentChange(day, slot.id, e.target.value)}
+                                // MODIFIED: Simplified classes and added print:hidden to fix duplication
+                                className={`w-full text-sm font-semibold rounded-md border-gray-300 shadow-sm focus:ring-teal-500 focus:border-teal-500 p-1 mb-1 ${task.color} ${task.text} print:hidden`}
                             >
                                 {Object.entries(allTasks).map(([id, def]) => (
                                     <option key={id} value={id} className={`p-2 ${def.color} ${def.text}`}>
@@ -407,7 +451,8 @@
                             </select>
                         ) : (
                             // Display for reserved slots (Screen-only display of the reserved status)
-                            <div className="p-1 mb-1 bg-white/70 rounded-md shadow-sm border border-gray-300 screen-reserved-text">
+                            // MODIFIED: Added print:hidden to fix duplication
+                            <div className="p-1 mb-1 bg-white/70 rounded-md shadow-sm border border-gray-300 print:hidden">
                                 {/* Display Uni/Out block first */}
                                 {isUniActive && (
                                     <span className="text-red-700 font-bold text-sm">University/Out</span>
@@ -421,7 +466,7 @@
                             </div>
                         )}
                         
-                        {/* Task Name Display for Printing (Removed for screen view as per request) */}
+                        {/* Task Name Display for Printing (This is the correct one for print) */}
                         <span className={`font-semibold text-sm leading-tight mb-1 hidden print:block`}>
                             {/* For reserved slots, display the *actual* reservation name in print */}
                             {isUniActive && <span className="text-red-800 block">University/Out</span>}
@@ -435,13 +480,13 @@
                         {/* Namaj Time Details (Time shown below label) */}
                         {matchingPrayer && (
                              <p className="mt-1 text-xxs text-indigo-700 font-medium print:text-xs">
-                                {convertToAmPm(namajTimes[matchingPrayer])}
+                                 {convertToAmPm(namajTimes[matchingPrayer])}
                             </p>
                         )}
                         {/* Uni Time Details (Time shown below label) */}
                         {isUniActive && uniTimes[day] && (
                              <p className="mt-1 text-xxs font-medium print:text-xs">
-                                {uniTimes[day].start ? convertToAmPm(uniTimes[day].start) : ''} - {uniTimes[day].end ? convertToAmPm(uniTimes[day].end) : ''}
+                                 {uniTimes[day].start ? convertToAmPm(uniTimes[day].start) : ''} - {uniTimes[day].end ? convertToAmPm(uniTimes[day].end) : ''}
                             </p>
                         )}
                         {/* Show Routine button only if it's a workout and not a reserved slot */}
@@ -463,52 +508,68 @@
 
             return (
                 <div className="p-4">
-                    <div className="flex space-x-2 mb-4 print:hidden">
+                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 mb-4 print:hidden">
                         <button
                             onClick={() => onSwitchView('settings')}
                             className="flex-1 py-3 bg-indigo-500 hover:bg-indigo-600 text-white text-xl font-bold rounded-xl shadow-lg transition duration-200"
                         >
-                            ← Back to Settings & Tasks
+                            ← Back to Settings
+                        </button>
+                        {/* NEW: Toggle button for grouping */}
+                        <button
+                            onClick={() => setIsGrouped(!isGrouped)}
+                            className="py-3 px-6 bg-gray-500 hover:bg-gray-600 text-white text-xl font-bold rounded-xl shadow-lg transition duration-200"
+                        >
+                            {isGrouped ? 'Ungroup Activities' : 'Group Activities'}
                         </button>
                         <button
                             onClick={handlePrint}
                             className="py-3 px-6 bg-yellow-500 hover:bg-yellow-600 text-gray-900 text-xl font-bold rounded-xl shadow-lg transition duration-200"
                         >
-                            Download Schedule (Print to PDF)
+                            Download Schedule
                         </button>
                     </div>
 
                     <div className="overflow-x-auto schedule-container rounded-lg shadow-lg" id="schedule-to-print">
-                      <table className="w-full text-left table-fixed">
-                        <thead className="sticky top-0 bg-gray-100 border-b border-gray-200 shadow-sm">
-                          <tr className="print:bg-gray-200">
-                            {/* Time Slot Header (Sticky) */}
-                            <th className="p-3 w-32 text-gray-700 text-sm font-bold sticky left-0 bg-gray-100 z-20 border-r border-gray-200 print:w-40 print:bg-gray-200">Time Slot</th>
-                            
-                            {/* Day Headers */}
-                            {DAYS.map(day => (
-                              <th key={day} className="p-3 text-gray-700 text-sm font-bold w-40 print:w-40 print:text-center">{day}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {TIME_SLOTS.map(slot => (
-                            <tr key={slot.id}>
-                              {/* Time Column (Sticky) */}
-                              <td className="p-3 font-semibold text-gray-900 border-b border-gray-200 sticky left-0 bg-white/90 backdrop-blur-sm z-10 border-r border-gray-200 print:bg-white print:text-sm">{slot.time}</td>
-                              
-                              {/* Daily Assignment Cells (Each contains its own dropdown) */}
-                              {DAYS.map(day => (
-                                <ScheduleCell 
-                                    key={day}
-                                    day={day}
-                                    slot={slot}
-                                />
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                        <table className="w-full text-left table-fixed">
+                            <thead className="sticky top-0 bg-gray-100 border-b border-gray-200 shadow-sm">
+                                <tr className="print:bg-gray-200">
+                                    {/* Time Slot Header (Sticky) */}
+                                    <th className="p-3 w-32 text-gray-700 text-sm font-bold sticky left-0 bg-gray-100 z-20 border-r border-gray-200 print:w-40 print:bg-gray-200">Time Slot</th>
+                                    
+                                    {/* Day Headers */}
+                                    {DAYS.map(day => (
+                                        <th key={day} className="p-3 text-gray-700 text-sm font-bold w-40 print:w-40 print:text-center">{day}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {/* MODIFIED: Render loop now accounts for grouping */}
+                                {TIME_SLOTS.map(slot => (
+                                    <tr key={slot.id}>
+                                        {/* Time Column (Sticky) */}
+                                        <td className="p-3 font-semibold text-gray-900 border-b border-gray-200 sticky left-0 bg-white/90 backdrop-blur-sm z-10 border-r border-gray-200 print:bg-white print:text-sm">{slot.time}</td>
+                                        
+                                        {/* Daily Assignment Cells */}
+                                        {DAYS.map(day => {
+                                            const span = isGrouped ? (rowSpans[day]?.[slot.id] ?? 1) : 1;
+                                            
+                                            // If grouping is on and this cell is part of a group, skip rendering
+                                            if (isGrouped && span === 0) return null;
+
+                                            return (
+                                                <ScheduleCell 
+                                                    key={day}
+                                                    day={day}
+                                                    slot={slot}
+                                                    rowSpan={span}
+                                                />
+                                            );
+                                        })}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             );
@@ -524,90 +585,78 @@
             // 1. Initialize State for Settings and Assignments
             // Ensure initial times are in 24-hour format
             const initialNamajTimes = { Fajr: '05:00', Zuhr: '13:00', Asr: '16:30', Maghrib: '18:30', Isha: '21:30' };
-            // Ensure every UNI_DAY has a time object and isEnabled flag
+            // Ensure every UNI_DAY has a default (disabled) state
             const initialUniTimes = UNI_DAYS.reduce((acc, day) => {
-                acc[day] = { start: '09:00', end: '17:00', isEnabled: true };
+                acc[day] = { start: '09:00', end: '17:00', isEnabled: false };
                 return acc;
             }, {});
-            
+
             const [namajTimes, setNamajTimes] = useState(initialNamajTimes);
             const [uniTimes, setUniTimes] = useState(initialUniTimes);
-            
-            // Weekly assignments: one task ID per slot AND per day
             const [weeklyAssignments, setWeeklyAssignments] = useState(INITIAL_WEEKLY_ASSIGNMENTS);
-            
-            // 2. Combine Base and Custom Tasks
-            const allTasks = useMemo(() => {
-                return { ...BASE_TASK_DEFINITIONS, ...customTasks };
-            }, [customTasks]);
 
-            // 3. Handlers for Settings
+            // 2. Combine base tasks and custom tasks into one object for easy lookup
+            const allTasks = useMemo(() => ({
+                ...BASE_TASK_DEFINITIONS,
+                ...customTasks
+            }), [customTasks]);
+
+            // 3. Handlers for state updates
             const handleNamajTimeChange = (prayer, time) => {
                 setNamajTimes(prev => ({ ...prev, [prayer]: time }));
             };
             
-            const handleUniTimeChange = (day, key, value) => {
+            const handleUniTimeChange = (day, field, value) => {
                 setUniTimes(prev => ({
                     ...prev,
-                    [day]: { ...prev[day], [key]: value }
+                    [day]: { ...prev[day], [field]: value }
                 }));
             };
 
-            // Assignment handler: updates the task for a specific slot ID on a specific DAY
-            const handleAssignmentChange = useCallback((day, slotId, taskId) => {
+            const handleAssignmentChange = (day, slotId, taskId) => {
                 setWeeklyAssignments(prev => ({
                     ...prev,
-                    [day]: {
-                        ...prev[day],
-                        [slotId]: taskId,
-                    }
+                    [day]: { ...prev[day], [slotId]: taskId }
                 }));
-            }, []);
+            };
 
-            // 4. Handlers for Custom Tasks
             const handleAddTask = (name, color) => {
-                const newId = `custom-${Date.now()}`;
+                const newId = `custom_${Date.now()}`;
+                const textClass = color.includes('yellow') ? 'text-yellow-900' :
+                                  color.includes('indigo') ? 'text-indigo-900' :
+                                  color.includes('green') ? 'text-green-900' : 'text-pink-900';
+
                 setCustomTasks(prev => ({
-                    [newId]: { id: newId, name, category: 'Custom', color, text: (color.includes('100') ? color.replace('100', '800') : 'text-gray-800'), isEditable: true },
                     ...prev,
+                    [newId]: { id: newId, name, color, text: textClass, category: 'Custom', isEditable: true }
                 }));
             };
 
             const handleDeleteTask = (taskId) => {
-                // Remove task from custom list
-                setCustomTasks(prev => {
-                    const newTasks = { ...prev };
-                    delete newTasks[taskId];
-                    return newTasks;
-                });
-                
-                // Remove task from all assignments if it was used
-                setWeeklyAssignments(prev => {
-                    const newAssignments = { ...prev };
-                    DAYS.forEach(day => {
-                        TIME_SLOTS.forEach(slot => {
-                            if (newAssignments[day][slot.id] === taskId) {
-                                newAssignments[day][slot.id] = 'none'; // Revert to unassigned
-                            }
-                        });
+                // First, remove the task from all assignments
+                const updatedAssignments = { ...weeklyAssignments };
+                DAYS.forEach(day => {
+                    Object.keys(updatedAssignments[day]).forEach(slotId => {
+                        if (updatedAssignments[day][slotId] === taskId) {
+                            updatedAssignments[day][slotId] = 'none'; // Reset to default
+                        }
                     });
-                    return newAssignments;
                 });
+                setWeeklyAssignments(updatedAssignments);
+                
+                // Then, remove the task definition itself
+                const newCustomTasks = { ...customTasks };
+                delete newCustomTasks[taskId];
+                setCustomTasks(newCustomTasks);
             };
 
-            // 5. Workout Modal Handlers
-            const handleShowWorkout = (day) => {
-                setShowWorkout({ day, ...WORKOUT_ROUTINES[day] });
-            };
+            return (
+                <div className="bg-gray-50 min-h-screen">
+                    <h1 className="text-3xl font-extrabold text-center text-gray-800 py-6 bg-white shadow-md print:hidden">
+                        🗓️ Flexible Schedule Builder V3
+                    </h1>
 
-            const closeModal = () => {
-                setShowWorkout(null);
-            };
-
-            // 6. View Renderer
-            const renderView = () => {
-                if (currentPage === 'settings') {
-                    return (
+                    {currentPage === 'settings' && (
                         <SettingsView
                             namajTimes={namajTimes}
                             onNamajTimeChange={handleNamajTimeChange}
@@ -618,81 +667,26 @@
                             onDeleteTask={handleDeleteTask}
                             onSwitchView={setCurrentPage}
                         />
-                    );
-                }
-                
-                return (
-                    <ScheduleView
-                        allTasks={allTasks}
-                        namajTimes={namajTimes}
-                        uniTimes={uniTimes}
-                        weeklyAssignments={weeklyAssignments}
-                        onAssignmentChange={handleAssignmentChange}
-                        onShowWorkout={handleShowWorkout}
-                        onSwitchView={setCurrentPage}
-                    />
-                );
-            };
+                    )}
 
-            return (
-                <div className="min-h-screen bg-gray-50 p-4 font-inter">
-                    <style>{`
-                        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-                        .font-inter { font-family: 'Inter', sans-serif; }
-                        .text-xxs { font-size: 0.65rem; }
-                        .schedule-container table { min-width: 1200px; }
-                        .schedule-container::-webkit-scrollbar { height: 6px; }
-                        .schedule-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-                        .schedule-container::-webkit-scrollbar-track { background: #f7fafc; }
+                    {currentPage === 'schedule' && (
+                        <ScheduleView
+                            allTasks={allTasks}
+                            namajTimes={namajTimes}
+                            uniTimes={uniTimes}
+                            weeklyAssignments={weeklyAssignments}
+                            onAssignmentChange={handleAssignmentChange}
+                            onShowWorkout={(day) => setShowWorkout({ day, ...WORKOUT_ROUTINES[day] })}
+                            onSwitchView={setCurrentPage}
+                        />
+                    )}
 
-                        /* Print Styles for PDF Download */
-                        @media print {
-                            body { background-color: white !important; padding: 0 !important; margin: 0; }
-                            .min-h-screen { min-height: 0; }
-                            .max-w-7xl, .mx-auto, .bg-white, .rounded-2xl, .shadow-xl { 
-                                max-width: none !important; 
-                                margin: 0 !important; 
-                                border-radius: 0 !important; 
-                                box-shadow: none !important; 
-                                overflow: visible !important;
-                            }
-                            header, .schedule-to-print { padding: 0 !important; }
-
-                            /* Hide non-essential UI elements in print */
-                            .print\\:hidden, .print\\:hidden * { display: none !important; }
-                            .schedule-container { overflow: visible !important; }
-                            
-                            /* Ensure table fills page and remove sticky headers/footers */
-                            table { table-layout: fixed; width: 100%; border-collapse: collapse; }
-                            thead th { position: static !important; background-color: #e5e7eb !important; border-bottom: 2px solid #374151; }
-                            tbody td { position: static !important; height: auto !important; padding: 0.5rem; font-size: 0.7rem; line-height: 1.1; border: 1px solid #e5e7eb; }
-                            
-                            /* Show Workout info in print */
-                            .workout-info { display: block !important; }
-
-                            /* For print, the task name is necessary since the dropdown is hidden */
-                            .print\\:block { display: block !important; }
-                            .print\\:text-sm { font-size: 0.875rem !important; }
-                        }
-                    `}</style>
-                    
-                    <div className="max-w-7xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
-                        <header className="bg-teal-600 p-6 text-white text-center rounded-t-2xl print:bg-teal-600">
-                          <h1 className="text-3xl font-extrabold tracking-tight mb-1">Flexible Schedule Builder V3</h1>
-                          <p className="text-sm opacity-90">Your customized weekly plan in two simple steps.</p>
-                        </header>
-                        
-                        {renderView()}
-                    </div>
-
-                    <WorkoutModal workout={showWorkout} onClose={closeModal} />
+                    <WorkoutModal workout={showWorkout} onClose={() => setShowWorkout(null)} />
                 </div>
             );
         };
 
-        const container = document.getElementById('root');
-        const root = ReactDOM.createRoot(container);
-        root.render(<ScheduleApp />);
+        ReactDOM.render(<ScheduleApp />, document.getElementById('root'));
     </script>
 </body>
 </html>
